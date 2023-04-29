@@ -2,12 +2,15 @@ import json
 import re
 import subprocess
 from pathlib import Path
-import os
+import methodtools
 from typing import Optional
 import iso639
 
 # Global variables
-default_mkv_path: Path = Path(__file__).parents[2].joinpath("resources/mkvmerge.exe").resolve()
+default_mkv_path: Path = Path(__file__).parents[1].joinpath("resources/mkvmerge.exe")
+
+def format_path(path: str):
+    return Path(path).expanduser().resolve()
 
 # Language check
 def is_ISO639_2(language):
@@ -30,12 +33,12 @@ class MKV():
                  file_path,
                  mkvmerge_path = None
                  ) -> None:
+        self._mkvmerge_path: Optional[Path] = None
+        self.mkvmerge_path = mkvmerge_path
+        
         self._file_path: Optional[Path] = None
         self.file_path = file_path
         
-        self._mkvmerge_path: Optional[Path] = None
-        self.mkvmerge_path = mkvmerge_path
-    
     @property
     def file_path(self):
         if not isinstance(self._file_path, Path):
@@ -46,8 +49,9 @@ class MKV():
     def file_path(self, file_path):
         if file_path is None:
             return
-        self.verify_supported(file_path)
-        self._file_path = Path(file_path)
+        file_path = format_path(file_path)
+        self.verify_supported(file_path=file_path)
+        self._file_path = file_path
     
     @property
     def mkvmerge_path(self):
@@ -58,17 +62,19 @@ class MKV():
         return self._mkvmerge_path
     
     @mkvmerge_path.setter
-    def mkvmerge_path(self, path):
-        if path is None:
+    def mkvmerge_path(self, mkvmerge_path):
+        if mkvmerge_path is None:
             return
-        self.verify_mkvmerge(mkvmerge_path=path)
-        self._mkvmerge_path = Path(path)
+        mkvmerge_path = format_path(mkvmerge_path)
+        self.verify_mkvmerge(mkvmerge_path=mkvmerge_path)
+        self._mkvmerge_path = mkvmerge_path
     
     def verify_mkvmerge(self, mkvmerge_path=None):
         # Overwrite check for adding other mkvmerge versions
-        _mkvmerge_path = self.mkvmerge_path
         if mkvmerge_path is not None:
-            _mkvmerge_path = Path(mkvmerge_path)
+            _mkvmerge_path = format_path(mkvmerge_path)
+        else:
+            _mkvmerge_path = self.mkvmerge_path
             
         # Check if installed
         try:
@@ -81,11 +87,13 @@ class MKV():
                 program_name=_mkvmerge_path
             )
     
+    @methodtools.lru_cache(maxsize=1)
     def info_json(self, file_path=None):
         # Overwrite check for adding other file paths
-        _file_path = self.file_path
         if file_path is not None:
-            _file_path = Path(file_path)
+            _file_path = format_path(file_path)
+        else:
+            _file_path = self.file_path
         
         # Stop if file not found in filesystem
         if not _file_path.is_file():
@@ -182,11 +190,15 @@ class MKVTrack(MKV):
     def track_type(self):
         return self._track_type
     
+    @classmethod
+    def from_file(cls, file_path, track_id=0):
+        pass
+    #TODO Load based on track_id
+    
 class MKVFile(MKV):
     def __init__(self, file_path, mkvmerge_path=None) -> None:
         super().__init__(file_path, mkvmerge_path)
      
         
 if __name__ == "__main__":
-    MKV(file_path="../../../shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4",
-        mkvmerge_path="./resources/mkvmerge.exe")
+    MKVFile(file_path="~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4")
