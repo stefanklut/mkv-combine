@@ -2,7 +2,6 @@ import json
 import re
 import subprocess
 from pathlib import Path
-import methodtools
 from typing import Optional
 import iso639
 
@@ -146,6 +145,7 @@ class MKVTrack(MKV):
         self.track_id = track_id
 
         # flags
+        # TODO Defaults from the info_json
         self.track_name = track_name
         self._language = None
         self.language = language
@@ -205,15 +205,10 @@ class MKVTrack(MKV):
     def track_type(self):
         return self._track_type
     
-    @classmethod
-    def from_file(cls, file_path, track_id=0):
-        pass
-    #TODO Load based on track_id
-    
 class MKVFile(MKV):
     def __init__(self, file_path, mkvmerge_path=None) -> None:
         super().__init__(file_path, mkvmerge_path)
-     
+        
         
 if __name__ == "__main__":
     MKVFile(file_path="~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4")
