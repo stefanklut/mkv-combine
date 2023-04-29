@@ -33,11 +33,18 @@ class MKV():
                  file_path,
                  mkvmerge_path = None
                  ) -> None:
+        # MKVMerge
         self._mkvmerge_path: Optional[Path] = None
         self.mkvmerge_path = mkvmerge_path
         
+        # Info json (mkmerge -J path)
+        self._info_json_hash = None
+        self._info_json = None
+        
+        # Current file
         self._file_path: Optional[Path] = None
         self.file_path = file_path
+        
         
     @property
     def file_path(self):
@@ -86,14 +93,17 @@ class MKV():
                 f"MKVMerge installed at {_mkvmerge_path} has not passed the install verification", 
                 program_name=_mkvmerge_path
             )
-    
-    @methodtools.lru_cache(maxsize=1)
+            
     def info_json(self, file_path=None):
         # Overwrite check for adding other file paths
         if file_path is not None:
             _file_path = format_path(file_path)
         else:
             _file_path = self.file_path
+        
+        # Return if result is precomputed
+        if self._info_json is not None and _file_path == self._info_json_hash:
+            return self._info_json
         
         # Stop if file not found in filesystem
         if not _file_path.is_file():
@@ -106,6 +116,11 @@ class MKV():
         try:
             output = subprocess.check_output([self.mkvmerge_path, '-J', _file_path]).decode()
             info_json = json.loads(output)
+            
+            # Save to instance
+            self._info_json_hash = _file_path
+            self._info_json = info_json
+            
             return info_json
         except (subprocess.CalledProcessError, FileNotFoundError):
             raise ValueError(f"File path at {_file_path} has not returned an info json")
