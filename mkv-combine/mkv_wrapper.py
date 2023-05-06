@@ -43,7 +43,17 @@ class MKV():
         # Current file
         self._file_path: Optional[Path] = None
         self.file_path = file_path
-        
+    
+    def __repr__(self):
+        attribs = {k: i for k, i in self.__dict__.items() if not k.startswith('_')}
+        for name in dir(self.__class__):
+            if name.startswith("_"):
+                continue  
+            obj = getattr(self.__class__, name)
+            if isinstance(obj, property):
+                val = obj.__get__(self, self.__class__)
+                attribs.update({name: val})
+        return f"{self.__class__}({repr(attribs)})"
         
     @property
     def file_path(self):
@@ -129,11 +139,18 @@ class MKV():
         
         # Check if file recognized by mkvmerge
         if not info_json['container']['supported']:
-            raise ValueError(f"File path at {file_path} has not passed the supported verification")
-            
+            raise ValueError(f"File path at {file_path} has not passed the supported verification")         
         
 class MKVTrack(MKV):
-    def __init__(self, file_path, mkvmerge_path=None, track_id=0, track_name=None, language=None, default_track=False, forced_track=False):
+    def __init__(self, 
+                 file_path, 
+                 mkvmerge_path=None, 
+                 track_id=0, 
+                 track_name=None, 
+                 language=None, 
+                 default_track=False, 
+                 forced_track=False
+                 ) -> None:
         super().__init__(file_path, mkvmerge_path)
         
         # track info
@@ -145,11 +162,14 @@ class MKVTrack(MKV):
         self.track_id = track_id
 
         # flags
-        # TODO Defaults from the info_json
-        self.track_name = track_name
         self._language = None
-        self.language = language
         self._tags = None
+        
+        self.set_defaults_from_info_json()
+                
+        # overwrite tracks
+        self.track_name = track_name
+        self.language = language
         self.default_track = default_track
         self.forced_track = forced_track
 
@@ -158,10 +178,7 @@ class MKVTrack(MKV):
         self.no_global_tags = False
         self.no_track_tags = False
         self.no_attachments = False
-
-    def __repr__(self):
-        return repr(self.__dict__)
-
+    
     @property
     def track_id(self):
         return self._track_id
@@ -174,6 +191,37 @@ class MKVTrack(MKV):
         self._track_id = track_id
         self._track_codec = info_json['tracks'][track_id]['codec']
         self._track_type = info_json['tracks'][track_id]['type']
+    
+    def track_from_track_id(self):
+        info_json = self.info_json()
+        
+        if self.track_id is None:
+            return None
+        
+        tracks = info_json.get("tracks")
+        if tracks is None:
+            raise IndexError(f"{self.file_path} does not contain tracks")
+        
+        for track in tracks:
+            if track.get("id") == self.track_id:
+                return track
+            
+        return None
+    
+    def set_defaults_from_info_json(self):
+        track = self.track_from_track_id()
+        
+        if track is None:
+            raise IndexError(f'track with index {self.track_id} out of range')
+        
+        if 'track_name' in track['properties']:
+            self.track_name = track['properties']['track_name']
+        if 'language' in track['properties']:
+            self.language = track['properties']['language']
+        if 'default_track' in track['properties']:
+            self.default_track = track['properties']['default_track']
+        if 'forced_track' in track['properties']:
+            self.forced_track = track['properties']['forced_track']
 
     @property
     def language(self):
@@ -209,6 +257,42 @@ class MKVFile(MKV):
     def __init__(self, file_path, mkvmerge_path=None) -> None:
         super().__init__(file_path, mkvmerge_path)
         
+        info_json = self.info_json()
+        
+        self.tracks = []
+        for track in info_json["tracks"]:
+            self.tracks.append(MKVTrack(self.file_path, track_id=track["id"]))
+    
+    # TODO generate command to send to subprocess
+    def command(self):
+        pass
+    
+    def mux(self):
+        pass
+
+    def add_track(self):
+        pass
+    
+    def add_file(self):
+        pass
+        
+    def no_chapters(self):
+        for track in self.tracks:
+            track.no_chapters = True
+
+    def no_global_tags(self):
+        for track in self.tracks:
+            track.no_global_tags = True
+
+    def no_track_tags(self):
+        for track in self.tracks:
+            track.no_track_tags = True
+
+    def no_attachments(self):
+        for track in self.tracks:
+            track.no_attachments = True
+        
+        
         
 if __name__ == "__main__":
-    MKVFile(file_path="~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4")
+    print(MKVFile(file_path="~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4"))
