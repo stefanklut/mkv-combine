@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import re
 import subprocess
@@ -8,7 +10,9 @@ import iso639
 # Global variables
 default_mkv_path: Path = Path(__file__).parents[1].joinpath("resources/mkvmerge.exe")
 
-def format_path(path: str):
+def format_path(path: str|Path):
+    if not isinstance(path, str|Path):
+        raise TypeError(f"Path needs to be set as Path or str, currently {type(path)}")
     return Path(path).expanduser().resolve()
 
 # Language check
@@ -187,7 +191,7 @@ class MKVTrack(MKV):
     def track_id(self, track_id):
         info_json = self.info_json()
         if not 0 <= track_id < len(info_json['tracks']):
-            raise IndexError('track index out of range')
+            raise IndexError("track index out of range")
         self._track_id = track_id
         self._track_codec = info_json['tracks'][track_id]['codec']
         self._track_type = info_json['tracks'][track_id]['type']
@@ -212,7 +216,7 @@ class MKVTrack(MKV):
         track = self.track_from_track_id()
         
         if track is None:
-            raise IndexError(f'track with index {self.track_id} out of range')
+            raise IndexError(f"track with index {self.track_id} out of range")
         
         if 'track_name' in track['properties']:
             self.track_name = track['properties']['track_name']
@@ -232,7 +236,7 @@ class MKVTrack(MKV):
         if language is None or is_ISO639_2(language):
             self._language = language
         else:
-            raise ValueError('not an ISO639-2 language code')
+            raise ValueError("not an ISO639-2 language code")
 
     @property
     def tags(self):
@@ -254,45 +258,119 @@ class MKVTrack(MKV):
         return self._track_type
     
 class MKVFile(MKV):
-    def __init__(self, file_path, mkvmerge_path=None) -> None:
+    def __init__(self, 
+                 file_path, 
+                 mkvmerge_path=None, 
+                 title: Optional[str]=None) -> None:
         super().__init__(file_path, mkvmerge_path)
+        
+        self.title = title
         
         info_json = self.info_json()
         
         self.tracks = []
         for track in info_json["tracks"]:
             self.tracks.append(MKVTrack(self.file_path, track_id=track["id"]))
-    
-    # TODO generate command to send to subprocess
-    def command(self):
-        pass
-    
-    def mux(self):
-        pass
-
-    def add_track(self):
-        pass
-    
-    def add_file(self):
-        pass
+            
+    def command(self, output_path: str|Path):
+        output_path = format_path(output_path)
+        if output_path.suffix != ".mkv":
+            raise ValueError(f"Output file should have suffix .mkv, currently {output_path.suffix}")
+        command = [f"{self.mkvmerge_path}", "-o", f"{output_path}"]
+        if self.title is not None:
+            command.extend(["--title", self.title])
         
-    def no_chapters(self):
         for track in self.tracks:
-            track.no_chapters = True
+            if track.track_name is not None:
+                command.extend(["--track-name", f"{track.track_id}:{track.track_name}"])
+                
+            if track.language is not None:
+                command.extend(["--language", f"{track.track_id}:{track.language}"])
+                
+            if track.tags is not None:
+                command.extend(["--tags", f"{track.track_id}:{track.tags}"])
+                
+            if track.default_track:
+                command.extend(["--default-track", f"{track.track_id}:1"])
+            else:
+                command.extend(["--default-track", f"{track.track_id}:0"])
+                
+            if track.forced_track:
+                command.extend(["--forced-track", f"{track.track_id}:1"])
+            else:
+                command.extend(["--forced-track", f"{track.track_id}:0"])
 
-    def no_global_tags(self):
-        for track in self.tracks:
-            track.no_global_tags = True
+            # remove extra tracks
+            if track.track_type != 'video':
+                command.append("-D")
+            else:
+                command.extend(["-d", f"{track.track_id}"])
+            if track.track_type != 'audio':
+                command.append("-A")
+            else:
+                command.extend(["-a", f"{track.track_id}"])
+            if track.track_type != 'subtitles':
+                command.append("-S")
+            else:
+                command.extend(["-s", f"{track.track_id}"])
 
-    def no_track_tags(self):
-        for track in self.tracks:
-            track.no_track_tags = True
+            # exclusions
+            if track.no_chapters:
+                command.append("--no-chapters")
+            if track.no_global_tags:
+                command.append("--no-global-tags")
+            if track.no_track_tags:
+                command.append("--no-track-tags")
+            if track.no_attachments:
+                command.append("--no-attachments")
 
-    def no_attachments(self):
-        for track in self.tracks:
-            track.no_attachments = True
+            # add path
+            command.append(f"{track.file_path}")
+
+        #TODO add attachments, chapters, splits
+        return command
+    
+    def mux(self, output_path: str|Path, silent: bool=True):
+        command = self.command(output_path)
+        if silent:
+            subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
+        else:
+            print(" ".join(command))
+            subprocess.run(command, check=True, capture_output=True)
+
+    def add_track(self, track: str|Path|MKVTrack):
+        if isinstance(track, str|Path):
+            self.tracks.append(MKVTrack(track))
+        elif isinstance(track, MKVTrack):
+            self.tracks.append(track)
+        else:
+            raise TypeError(f"track {track} is not str, Path or MKVTrack")
+    
+    def add_file(self, file: str|Path|MKVFile):
+        if isinstance(file, str|Path):
+            self.tracks = self.tracks + MKVFile(file).tracks
+        elif isinstance(file, MKVFile):
+            self.tracks = self.tracks + file.tracks
+        else:
+            raise TypeError(f"File {file} is not str or MKVFile")
         
-        
+    def ignore_chapters(self, ignore: bool=True):
+        for track in self.tracks:
+            track.no_chapters = ignore
+
+    def ignore_global_tags(self, ignore: bool=True):
+        for track in self.tracks:
+            track.no_global_tags = ignore
+
+    def ignore_track_tags(self, ignore: bool=True):
+        for track in self.tracks:
+            track.no_track_tags = ignore
+
+    def ignore_attachments(self, ignore: bool=True):
+        for track in self.tracks:
+            track.no_attachments = ignore
         
 if __name__ == "__main__":
-    print(MKVFile(file_path="~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4"))
+    mkv_file = MKVFile(file_path="~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4")
+    mkv_file.add_track(r"C:\Users\stefa\Documents\shared\American.History.X.1998.1080p.BluRay.x265-RARBG\Subs\2_English.srt")
+    mkv_file.mux("video.mkv", silent=False)
