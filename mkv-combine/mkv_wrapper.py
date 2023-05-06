@@ -371,6 +371,6 @@ class MKVFile(MKV):
             track.no_attachments = ignore
         
 if __name__ == "__main__":
-    mkv_file = MKVFile(file_path="~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4")
+    mkv_file = MKVFile(r"~/Documents/shared/American.History.X.1998.1080p.BluRay.x265-RARBG/American.History.X.1998.1080p.BluRay.x265-RARBG.mp4")
     mkv_file.add_track(r"C:\Users\stefa\Documents\shared\American.History.X.1998.1080p.BluRay.x265-RARBG\Subs\2_English.srt")
     mkv_file.mux("video.mkv", silent=False)
