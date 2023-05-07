@@ -112,6 +112,8 @@ def main(args):
                 continue
             video.mux(output_path)
             video.file_path.unlink()
+        if args.dry_run:
+            continue
         shutil.rmtree(subs_path)
 
 if __name__ == "__main__":
