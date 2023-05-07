@@ -31,6 +31,9 @@ class ExternalInstallError(OSError):
         super().__init__(args)
         self.program_name = kwargs.get('program_name')
         
+class FileNotSupportedError(OSError):
+    pass
+        
 class MKV():
     def __init__(self,
                  file_path,
@@ -143,7 +146,7 @@ class MKV():
         
         # Check if file recognized by mkvmerge
         if not info_json['container']['supported']:
-            raise ValueError(f"File path at {file_path} has not passed the supported verification")         
+            raise FileNotSupportedError(f"File path at {file_path} has not passed the supported verification")         
         
 class MKVTrack(MKV):
     def __init__(self, 
@@ -268,9 +271,21 @@ class MKVFile(MKV):
         
         info_json = self.info_json()
         
-        self.tracks = []
+        self.tracks: list[MKVTrack] = []
         for track in info_json["tracks"]:
             self.tracks.append(MKVTrack(self.file_path, track_id=track["id"]))
+            
+    def contains_video(self):
+        for track in self.tracks:
+            if track.track_type == "video":
+                return True
+        return False
+    
+    def contains_subtitles(self):
+        for track in self.tracks:
+            if track.track_type == "subtitles":
+                return True
+        return False
             
     def command(self, output_path: str|Path):
         output_path = format_path(output_path)
