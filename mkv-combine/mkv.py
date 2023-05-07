@@ -348,10 +348,11 @@ class MKVFile(MKV):
     def mux(self, output_path: str|Path, silent: bool=True):
         command = self.command(output_path)
         if silent:
-            subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
+            result = subprocess.run(command, check=False, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
         else:
-            print(" ".join(command))
-            subprocess.run(command, check=True, capture_output=True)
+            result = subprocess.run(command, check=False, capture_output=True)
+        if result.returncode == 2:
+            raise subprocess.SubprocessError(result)
 
     def add_track(self, track: str|Path|MKVTrack):
         if isinstance(track, str|Path):

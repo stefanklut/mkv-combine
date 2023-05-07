@@ -1,7 +1,7 @@
 from __future__ import annotations
 import argparse
 from pathlib import Path
-import shutil
+from send2trash import send2trash
 import mkv
 from typing import Generator, Iterator, Optional
 
@@ -23,6 +23,8 @@ def get_arguments() -> argparse.Namespace:
     options_args = parser.add_argument_group("Options")
     options_args.add_argument("-n", "--dry_run", action="store_true", help="Show commands to be executed")
     options_args.add_argument("-v", "--verbose", action='count', default=0, help="Print executions")
+    # TODO Overwrite
+    # options_args.add_argument("-o", "--overwrite", action='store_true', default=0, help="Print executions")
     
     args = parser.parse_args()
     return args
@@ -110,11 +112,12 @@ def main(args):
                 print(f"Command:\n\t{' '.join(video.command(output_path))}")
             if args.dry_run:
                 continue
-            video.mux(output_path)
-            video.file_path.unlink()
+            silent = False if args.verbose > 2 else True
+            video.mux(output_path, silent)
+            send2trash(video.file_path)
         if args.dry_run:
             continue
-        shutil.rmtree(subs_path)
+        send2trash(subs_path)
 
 if __name__ == "__main__":
     args = get_arguments()
