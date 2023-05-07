@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Optional
 import iso639
 
+# Based on https://github.com/sheldonkwoodward/pymkv
+
 # Global variables
 default_mkv_path: Path = Path(__file__).parents[1].joinpath("resources/mkvmerge.exe")
 
