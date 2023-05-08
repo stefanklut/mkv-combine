@@ -98,9 +98,15 @@ def main(args):
         for video, subs in match_subs_to_file(subs_path):
             output_path = video.file_path.with_suffix(".mkv")
             for sub in subs:
+                # TODO Improve this check, this is error prone if non contain english or dutch
+                # Maybe move this check to mkv.py?
                 if sub.tracks[0].language is None:
-                    # TODO Determine language from filename
-                    sub.tracks[0].language = 'eng' #set language to english
+                    if 'english' in sub.file_path.stem.lower():
+                        sub.tracks[0].language = 'eng' #set language to english
+                    elif 'dutch' in sub.file_path.stem.lower():
+                        sub.tracks[0].language = 'dut' #set language to dutch
+                    else:
+                        continue
                 video.add_file(sub)
             if args.verbose > 0:
                 print(f"Video:\n\t{video.file_path}")
