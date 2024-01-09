@@ -90,7 +90,7 @@ def match_subs_to_file(path: Path) -> Generator[tuple[mkv.MKVFile, list[mkv.MKVF
             subs = subs_from_paths(sub_path.glob("*"))
             if len(subs) == 0:
                 raise FileNotFoundError(f"Found no possible subtitles files in {path}")
-            videos = videos_from_paths(path.parent.glob(f"{sub_path}.*"))
+            videos = videos_from_paths(path.parent.glob(f"{sub_path.stem}.*"))
             if len(videos) == 0:
                 raise FileNotFoundError(f"Found no possible video files in {path}")
             if len(videos) > 1:
@@ -107,8 +107,15 @@ def main(args):
         for video, subs in match_subs_to_file(subs_path):
             output_path = video.file_path.with_suffix(".mkv")
             for sub in subs:
+                # TODO Improve this check, this is error prone if non contain english or dutch
+                # Maybe move this check to mkv.py?
                 if sub.tracks[0].language is None:
-                    sub.tracks[0].language = "eng"  # set language to english
+                    if "english" in sub.file_path.stem.lower():
+                        sub.tracks[0].language = "eng"  # set language to english
+                    elif "dutch" in sub.file_path.stem.lower():
+                        sub.tracks[0].language = "dut"  # set language to dutch
+                    else:
+                        continue
                 video.add_file(sub)
             if args.verbose > 0:
                 print(f"Video:\n\t{video.file_path}")
@@ -122,6 +129,7 @@ def main(args):
             if args.dry_run:
                 continue
             silent = False if args.verbose > 2 else True
+            # IDEA Use atomic save for overwrite, but then don't send2trash
             video.mux(output_path, silent)
             send2trash(video.file_path)
         if args.dry_run:
